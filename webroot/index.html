@@ -1,0 +1,374 @@
+<style>
+body { font: 10pt Verdana; }
+#theCanvas { border: solid 1px black; float:left}
+div { overflow: hidden; }
+</style>
+
+<script>
+var the_problem = {};
+var the_solution = {};
+var selected_vertices = [];
+var scale_x = 6.0;
+var scale_y = 6.0;
+var delta_x = 0.0;
+var delta_y = 0.0;
+var validation_json;
+var mousedown_vertices;
+var mousedown_position;
+var action = '';
+
+function toScreen(pt) {
+	return { 
+		x: scale_x * pt[0] + delta_x, 
+		y: scale_y * pt[1] + delta_y 
+	};
+}
+
+function fromScreen(x, y) {
+	return { 
+		x: Math.floor((x - delta_x + scale_x / 2) / scale_x), 
+		y: Math.floor((y - delta_y + scale_y / 2) / scale_y) 
+	};
+}
+
+function send(requestUrl, requestBody, onResponse) {
+	var xhr = new XMLHttpRequest();
+	xhr.onreadystatechange = function() {
+		if (this.readyState != 4) { return; }
+		
+		if (this.status == 404) {
+			onResponse(null);
+			return;
+		}
+
+		if (this.status != 200) { 
+			window.alert ("HTTP status " + this.status + ": " + this.responseText);
+			return;
+		}
+
+		onResponse(JSON.parse(this.responseText));
+	};
+	
+	xhr.open("POST", "/api/brainwall/" + requestUrl, true);
+	xhr.setRequestHeader("Content-type", "application/json");
+	xhr.send(requestBody ? JSON.stringify(requestBody) : requestBody);
+}
+
+function draw() {
+	var theCanvas = document.getElementById("theCanvas");
+	var ctx = theCanvas.getContext("2d");
+
+	// Draw gray background
+	ctx.fillStyle = '#666';
+	ctx.fillRect(0, 0, theCanvas.width, theCanvas.height);
+	
+	// Draw white hole
+	ctx.beginPath();
+	var pt = toScreen(the_problem.hole[0]);
+	ctx.moveTo(pt.x, pt.y);
+	for (var i = 1; i < the_problem.hole.length; ++i) {
+		var pt = toScreen(the_problem.hole[i]);
+		ctx.lineTo(pt.x, pt.y);
+	}
+	
+	ctx.closePath();
+	ctx.fillStyle = '#999';
+	ctx.fill();
+	
+	// Draw black grid points
+	ctx.fillStyle = '#000';
+	for (var x = 0; x < theCanvas.width; x += scale_x) {
+		for (var y = 0; y < theCanvas.height; y += scale_y) {
+			ctx.fillRect(x, y, 1, 1);
+		}
+	}
+	
+	// Draw figure edges
+	for (var i = 0; i < the_problem.figure.edges.length; ++i) {
+		var edge = the_problem.figure.edges[i];
+		var pt1 = toScreen(the_solution.vertices[edge[0]]);
+		var pt2 = toScreen(the_solution.vertices[edge[1]]);
+		ctx.beginPath();
+		ctx.moveTo(pt1.x, pt1.y);
+		ctx.lineTo(pt2.x, pt2.y);
+		ctx.lineWidth = 1;
+		ctx.strokeStyle = 
+			validation_json.badBounds.includes(i) ? '#d00' :
+			validation_json.badLengths.includes(i) ? '#dd0' : 
+			'#0d0';
+		ctx.stroke();
+		
+		ctx.strokeText(i, (pt1.x + pt2.x) / 2, (pt1.y + pt2.y) / 2);
+	}
+	
+	// Draw blue vertices
+	for (var i = 0; i < the_solution.vertices.length; ++i) {
+		var pt = toScreen(the_solution.vertices[i]);
+		ctx.beginPath();
+		ctx.ellipse(pt.x, pt.y, 3, 3, 0, 0, 2 * Math.PI);
+		ctx.fillStyle = selected_vertices.includes(i) ? '#fff' : '#33f';
+		ctx.fill();
+	}
+}
+
+function update_scale(json) {
+	var theCanvas = document.getElementById("theCanvas");
+
+	var max_x = 0;
+	var max_y = 0;
+	for (var i = 0; i < json.hole.length; ++i) {
+		var x = json.hole[i][0];
+		var y = json.hole[i][1];
+		if (x > max_x) { max_x = x; }
+		if (y > max_y) { max_y = y; }
+	}
+	
+	for (var i = 0; i < json.figure.vertices.length; ++i) {
+		var x = json.figure.vertices[i][0];
+		var y = json.figure.vertices[i][1];
+		if (x > max_x) { max_x = x; }
+		if (y > max_y) { max_y = y; }
+	}
+	
+	scale_x = theCanvas.width / (max_x + 10);
+	scale_y = theCanvas.height / (max_y + 10);
+	
+	if (scale_y > scale_x) { scale_y = scale_x; } else { scale_x = scale_y; }
+
+	delta_x = 5 * scale_x;
+	delta_y = 5 * scale_y;
+}
+
+function canvas_click(event) {
+	var pt = fromScreen(event.offsetX, event.offsetY);
+	var clicked_vertices = [];
+	for (var i = 0; i < the_solution.vertices.length; ++i) {
+		var vertex = the_solution.vertices[i];
+		if (vertex[0] == pt.x && vertex[1] == pt.y) {
+			clicked_vertices.push(i);
+		}
+	}
+
+	if (!event.ctrlKey) {
+		selected_vertices = clicked_vertices;
+	}
+	else {
+		var new_vertices = clicked_vertices.filter(function(i) { return !selected_vertices.includes(i); });
+		selected_vertices = selected_vertices.
+			filter(function(i) { return !clicked_vertices.includes(i); }).
+			concat(new_vertices);
+	}
+	
+	draw();
+}
+
+function canvas_mousedown(event) {
+	if (event.button == 2) {
+		mousedown_position = { x: event.offsetX, y: event.offsetY };
+		mousedown_vertices = the_solution.vertices.slice(0);
+		action = 'move_points';
+	}
+}
+
+function canvas_mousemove(event) {
+	var theXY = document.getElementById("theXY");
+	var xy = fromScreen(event.offsetX, event.offsetY);
+	theXY.innerHTML = "x:" + xy.x + ", y:" + xy.y;
+
+	if (action == 'move_points') {
+		the_solution.vertices = the_solution.vertices.map(function (vertex, idx) {
+			var screen_delta = fromScreen(event.offsetX - mousedown_position.x + delta_x, event.offsetY - mousedown_position.y + delta_y);
+			return selected_vertices.includes(idx) ? [mousedown_vertices[idx][0] + screen_delta.x, mousedown_vertices[idx][1] + screen_delta.y] : vertex;
+		});
+		
+		revalidate();
+	}
+	
+	
+}
+
+function canvas_mouseup(event) {
+	action = '';
+}
+
+function left_click() {
+	var problemId = document.getElementById('problemId');
+	problemId.value = parseInt(problemId.value) - 1;
+	load();
+}
+
+function right_click() {
+	var problemId = document.getElementById('problemId');
+	problemId.value = parseInt(problemId.value) + 1;
+	load();
+}
+
+function getProblemId() {
+	return document.getElementById('problemId').value;
+}
+
+function reset_click() {
+	load_solution_complete(null);
+}
+
+function set_status(success, message) {
+	var theStatus = document.getElementById('theStatus');
+	theStatus.style.backgroundColor = success ? '#fff' : '#f88';
+	theStatus.innerHTML = message;
+}
+
+function clear_status() {
+	set_status(true, '');
+}
+
+function selectall_click() {
+	selected_vertices  = [];
+	for (var i = 0; i < the_problem.figure.vertices.length; ++i) {
+		selected_vertices .push(i);
+	}
+	
+	draw();
+}
+
+// load and stuff.
+
+function load() {
+	send("fetch/" + getProblemId(), null, fetch_problem_complete);
+}
+
+function fetch_problem_complete(json) {
+	the_problem = json;
+ 
+	var theEpsilon = document.getElementById("theEpsilon");
+	theEpsilon.innerHTML = 'Epsilon: ' + json.epsilon / 10000.0 + "%";
+	
+	send("load/" + getProblemId(), null, load_solution_complete);
+}
+
+function load_solution_complete(json) {
+	if (json) {
+		the_solution = json;
+	} else {
+		the_solution = { vertices: the_problem.figure.vertices };
+	}
+	
+	selected_vertices = [];
+	update_scale(the_problem);
+	
+	revalidate();
+}
+
+function revalidate() {
+	send("validate/" + getProblemId(), the_solution, validate_solution_complete);
+}
+
+function validate_solution_complete(json) {
+	validation_json = json;
+	draw();
+	
+	var theDislikes = document.getElementById('theDislikes'); 
+	theDislikes.innerHTML = "Dislikes: " + validation_json.dislikes;
+}
+
+function save_click() {
+	set_status(true, 'Saving');
+	send("save/" + getProblemId(), the_solution, save_complete);
+}
+
+function save_complete(response) {
+    set_status(response.success, response.success ? "Save successful!" : "Failed to save!");
+	setTimeout(clear_status, 3000);
+}
+
+function submit_click() {
+	set_status(true, 'Submitting');
+	send("submit/" + getProblemId(), the_solution, submit_complete);
+}
+
+function submit_complete(response) {
+    set_status(response.success, response.success ? "Submit successful!" : "Failed to submit! " + response.message);
+	if (response.success) {
+		setTimeout(clear_status, 3000);
+	}
+}
+
+function bruteforce_click() {
+	set_status(true, 'Brute forcing ...');
+	send("bruteforce/" + getProblemId(), {}, bruteforce_complete);
+}
+
+function bruteforce_complete(response) {
+    set_status(response != null, response != null ? "Bruce force successful!" : "Failed to find a solution!");
+	if (response != null) {
+		the_solution = response;
+		revalidate();
+	}
+	
+	setTimeout(clear_status, 3000);
+}
+
+function incrementalforce_click() {
+	set_status(true, 'Incremental brute forcing ...');
+	send("incrementalforce/" + getProblemId(), { selected: selected_vertices, solution: the_solution.vertices }, incrementalforce_complete);
+}
+
+function incrementalforce_complete(response) {
+    set_status(response != null, response != null ? "Incremental force successful!" : "Incremental force failed.");
+	if (response != null) {
+		the_solution = response;
+		revalidate();
+	}
+	
+	setTimeout(clear_status, 3000);
+}
+</script>
+
+<canvas id=theCanvas height=800 width=800 
+	onclick="canvas_click(event);" 
+	onmousedown='canvas_mousedown(event);'
+	onmousemove='canvas_mousemove(event);'
+	onmouseup='canvas_mouseup(event);'
+	oncontextmenu="return false;">
+</canvas>
+
+<div style="padding: 5px;">
+<p>
+<input type=Button value='&lt;' onclick='left_click();'>
+<input type=text maxlength=4 size=4 value=1 id=problemId onchange='load();'>
+<input type=Button value='&gt;' onclick='right_click();'>
+
+<p>
+<input type=Button value='Reset' onclick="reset_click();">
+<input type=Button value='Brute force' onclick="bruteforce_click();">
+<input type=Button value='Incremental force' onclick="incrementalforce_click();">
+<input type=Button value='Select all' onclick="selectall_click();">
+<!--
+<input type=Button value='Undo' onclick="">
+<input type=Button value='Redo' onclick="">
+-->
+
+<!--
+<p>
+    <input type=Radio name='Tool' CHECKED>Move points
+<br><input type=Radio name='Tool'>Flip points
+<br><input type=Radio name='Tool'>Rotate points
+<br><input type=Radio name='Tool'>Move figure
+<br><input type=Radio name='Tool'>Flip figure
+<br><input type=Radio name='Tool'>Rotate figure
+<br><input type=Radio name='Tool'>Scale figure
+<br><input type=Radio name='Tool'>Shear figure
+-->
+
+<p>
+<input type=Button value='Save' onclick="save_click();">
+<input type=Button value='Submit' onclick="submit_click();">
+
+<div id=theEpsilon></div>
+<div id=theDislikes></div>
+<div id=theXY></div>
+<div id=theStatus></div>
+</div>
+
+<script>
+load();
+</script>
