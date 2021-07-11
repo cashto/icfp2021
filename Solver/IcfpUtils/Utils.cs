@@ -7,6 +7,22 @@ namespace IcfpUtils
 {
     public static class Utils
     {
+        public static List<T> Shuffle<T>(this IEnumerable<T> x)
+        {
+            var ans = x.ToList();
+            var rand = new Random();
+
+            for (var i = 0; i < ans.Count; ++i)
+            {
+                var j = rand.Next(ans.Count - i) + i;
+                var t = ans[i];
+                ans[i] = ans[j];
+                ans[j] = t;
+            }
+
+            return ans;
+        }
+
         public static T Largest<T, U>(this IEnumerable<T> list, Func<T, U> fn) where U : IComparable<U>
         {
             var ans = list.First();

@@ -129,14 +129,17 @@ namespace Solver
         {
             var problemFilename = $"{Program.ProblemsRoot}\\problem{id}.json";
             var problem = JsonConvert.DeserializeObject<ProblemBody>(System.IO.File.ReadAllText(problemFilename));
-            var result = new ValidateResponseBody()
-            {
-                badBounds = Enumerable.Range(0, problem.figure.edges.Count).Where(i => Program.IsBadBound(problem, solution, i)).ToList(),
-                badLengths = Enumerable.Range(0, problem.figure.edges.Count).Where(i => Program.IsBadLength(problem, solution, i)).ToList(),
-                dislikes = Program.Dislikes(problem, solution)
-            };
+            return Ok(Validate(problem, solution.vertices));
+        }
 
-            return Ok(result);
+        private ValidateResponseBody Validate(ProblemBody problem, List<List<int>> solutionVertices)
+        {
+            return new ValidateResponseBody()
+            {
+                badBounds = Enumerable.Range(0, problem.figure.edges.Count).Where(i => Program.IsBadBound(problem, solutionVertices, i)).ToList(),
+                badLengths = Enumerable.Range(0, problem.figure.edges.Count).Where(i => Program.IsBadLength(problem, solutionVertices, i)).ToList(),
+                dislikes = Program.Dislikes(problem.ProblemHole(), solutionVertices.Select(i => new Point2D(i[0], i[1])).ToList())
+            };
         }
 
         [HttpPost]
@@ -157,18 +160,60 @@ namespace Solver
 
         [HttpPost]
         [Route("incrementalforce/{id}")]
-        public IActionResult IncrementalForce(int id, [FromBody] IncrementalForceBody body)
+        public IActionResult IncrementalForce(int id, [FromBody] OptimizationBody body)
         {
             var cancellationSource = new CancellationTokenSource();
             cancellationSource.CancelAfter(TimeSpan.FromSeconds(10));
-            var result = Program.IncrementalBruteForce(id, cancellationSource.Token, body);
+            var problem = JsonConvert.DeserializeObject<ProblemBody>(System.IO.File.ReadAllText($"{Program.ProblemsRoot}\\problem{id}.json"));
 
-            if (result == null)
+            var initialValidation = Validate(problem, body.solution);
+            var result = Program.IncrementalBruteForce(problem, cancellationSource.Token, body);
+            
+            if (result == null || Validate(problem, result.vertices).IsWorseThan(initialValidation))
             {
                 return NotFound();
             }
 
             return Ok(result);
+        }
+
+        [HttpPost]
+        [Route("optimize/{id}")]
+        public IActionResult Optimize(int id, [FromBody] OptimizationBody body)
+        {
+            var problem = JsonConvert.DeserializeObject<ProblemBody>(System.IO.File.ReadAllText($"{Program.ProblemsRoot}\\problem{id}.json"));
+            var initialValidation = Validate(problem, body.solution);
+
+            var currentSolution = body.solution.Select(i => new Point2D(i[0], i[1])).ToList();
+            currentSolution = Program.Optimize(problem, TimeSpan.FromSeconds(5), currentSolution, optimizeForDislikes: true);
+            currentSolution = Program.Optimize(problem, TimeSpan.FromSeconds(5), currentSolution, optimizeForDislikes: false);
+            var newSolution = new SolutionBody() { vertices = currentSolution.Select(i => new List<int>() { (int)i.x, (int)i.y }).ToList() };
+
+            if (currentSolution == null || Validate(problem, newSolution.vertices).IsWorseThan(initialValidation))
+            {
+                return NotFound();
+            }
+
+            return Ok(newSolution);
+        }
+
+        [HttpPost]
+        [Route("refine/{id}")]
+        public IActionResult Refine(int id, [FromBody] OptimizationBody body)
+        {
+            var problem = JsonConvert.DeserializeObject<ProblemBody>(System.IO.File.ReadAllText($"{Program.ProblemsRoot}\\problem{id}.json"));
+            var initialValidation = Validate(problem, body.solution);
+
+            var currentSolution = body.solution.Select(i => new Point2D(i[0], i[1])).ToList();
+            currentSolution = Program.Refine(problem, TimeSpan.FromSeconds(10), currentSolution);
+            var newSolution = new SolutionBody() { vertices = currentSolution.Select(i => new List<int>() { (int)i.x, (int)i.y }).ToList() };
+
+            if (currentSolution == null || Validate(problem, newSolution.vertices).IsWorseThan(initialValidation))
+            {
+                return NotFound();
+            }
+
+            return Ok(newSolution);
         }
 
         [HttpPost]
@@ -182,6 +227,14 @@ namespace Solver
 
             try
             {
+                var problemFilename = $"{Program.ProblemsRoot}\\problem{id}.json";
+                var problem = JsonConvert.DeserializeObject<ProblemBody>(System.IO.File.ReadAllText(problemFilename));
+                var validation = Validate(problem, solution.vertices);
+                if (!validation.IsValid)
+                {
+                    throw new Exception("Cannot submit invalid solution!");
+                }
+
                 var submissionDir = $"{Program.WorkRoot}\\submissions\\{id}";
                 Directory.CreateDirectory(submissionDir);
                 var submissionId = await SubmitToServer(id, solution);

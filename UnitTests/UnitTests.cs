@@ -23,7 +23,7 @@ namespace UnitTests
             var solutionFilename = $"{Program.WorkRoot}\\solution{id}.json";
             var solution = JsonConvert.DeserializeObject<SolutionBody>(System.IO.File.ReadAllText(solutionFilename));
 
-            Assert.IsFalse(Program.IsBadBound(problem, solution, edge));
+            Assert.IsFalse(Program.IsBadBound(problem, solution.vertices, edge));
         }
 
         [TestMethod]
@@ -37,7 +37,7 @@ namespace UnitTests
             var solutionFilename = $"{Program.WorkRoot}\\solution{id}.json";
             var solution = JsonConvert.DeserializeObject<SolutionBody>(System.IO.File.ReadAllText(solutionFilename));
 
-            var badEdges = Enumerable.Range(0, problem.figure.edges.Count).Where(i => Program.IsBadBound(problem, solution, i)).ToList();
+            var badEdges = Enumerable.Range(0, problem.figure.edges.Count).Where(i => Program.IsBadBound(problem, solution.vertices, i)).ToList();
 
             Assert.AreEqual(0, badEdges.Count);
         }
@@ -50,18 +50,8 @@ namespace UnitTests
             var problemFilename = $"{Program.ProblemsRoot}\\problem{id}.json";
             var problem = JsonConvert.DeserializeObject<ProblemBody>(System.IO.File.ReadAllText(problemFilename));
 
-            var problemHole = problem.hole.Select(i => new Point2D(i[0], i[1])).ToList();
+            var problemHole = problem.ProblemHole();
             Assert.IsTrue(Program.IsInside(problemHole, new Point2D(10, 10)));
-        }
-
-
-        [TestMethod]
-        public void Problem15BottomPoint()
-        {
-            var id = 15;
-            var problem = GetProblem(id);
-            var solution = GetSolution(id);
-            Assert.AreEqual(450, Program.Dislikes(problem, solution));
         }
 
         private ProblemBody GetProblem(int id)

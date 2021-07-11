@@ -4,6 +4,8 @@ namespace IcfpUtils
 {
     public struct Point2D
     {
+        public readonly static Point2D Zero = new Point2D(0, 0);
+
         public double x { get; set; }
         public double y { get; set; }
 
@@ -32,6 +34,23 @@ namespace IcfpUtils
         {
             var other = obj as Point2D?;
             return other != null && this == other;
+        }
+
+        public static Point2D operator+ (Point2D lhs, Point2D rhs)
+        {
+            return new Point2D(lhs.x + rhs.x, lhs.y + rhs.y);
+        }
+
+        public double SquaredDistance(Point2D other)
+        {
+            var dx = this.x - other.x;
+            var dy = this.x - other.x;
+            return dx * dx + dy * dy;
+        }
+
+        public double Distance(Point2D other)
+        {
+            return Math.Sqrt(SquaredDistance(other));
         }
     }
 
