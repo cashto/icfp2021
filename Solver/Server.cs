@@ -148,7 +148,7 @@ namespace Solver
         {
             var cancellationSource = new CancellationTokenSource();
             cancellationSource.CancelAfter(TimeSpan.FromSeconds(10));
-            var result = Program.BruteForce(id, cancellationSource.Token);
+            var result = Solver.BruteForce.Optimize(id, cancellationSource.Token);
 
             if (result == null)
             {
@@ -167,7 +167,7 @@ namespace Solver
             var problem = JsonConvert.DeserializeObject<ProblemBody>(System.IO.File.ReadAllText($"{Program.ProblemsRoot}\\problem{id}.json"));
 
             var initialValidation = Validate(problem, body.solution);
-            var result = Program.IncrementalBruteForce(problem, cancellationSource.Token, body);
+            var result = IncrementalBruteForce.Execute(problem, cancellationSource.Token, body);
             
             if (result == null || Validate(problem, result.vertices).IsWorseThan(initialValidation))
             {
@@ -185,8 +185,8 @@ namespace Solver
             var initialValidation = Validate(problem, body.solution);
 
             var currentSolution = body.solution.Select(i => new Point2D(i[0], i[1])).ToList();
-            currentSolution = Program.Optimize(problem, TimeSpan.FromSeconds(5), currentSolution, optimizeForDislikes: true);
-            currentSolution = Program.Optimize(problem, TimeSpan.FromSeconds(5), currentSolution, optimizeForDislikes: false);
+            currentSolution = Optimizer.Optimize(problem, GetCancellationToken(TimeSpan.FromSeconds(5)), currentSolution, optimizeForDislikes: true);
+            currentSolution = Optimizer.Optimize(problem, GetCancellationToken(TimeSpan.FromSeconds(5)), currentSolution, optimizeForDislikes: false);
             var newSolution = new SolutionBody() { vertices = currentSolution.Select(i => new List<int>() { (int)i.x, (int)i.y }).ToList() };
 
             if (currentSolution == null || Validate(problem, newSolution.vertices).IsWorseThan(initialValidation))
@@ -205,7 +205,26 @@ namespace Solver
             var initialValidation = Validate(problem, body.solution);
 
             var currentSolution = body.solution.Select(i => new Point2D(i[0], i[1])).ToList();
-            currentSolution = Program.Refine(problem, TimeSpan.FromSeconds(10), currentSolution);
+            currentSolution = Solver.Refine.Optimize(problem, TimeSpan.FromSeconds(10), currentSolution);
+            var newSolution = new SolutionBody() { vertices = currentSolution.Select(i => new List<int>() { (int)i.x, (int)i.y }).ToList() };
+
+            if (currentSolution == null || Validate(problem, newSolution.vertices).IsWorseThan(initialValidation))
+            {
+                return NotFound();
+            }
+
+            return Ok(newSolution);
+        }
+
+        [HttpPost]
+        [Route("corner/{id}")]
+        public IActionResult Corner(int id, [FromBody] OptimizationBody body)
+        {
+            var problem = JsonConvert.DeserializeObject<ProblemBody>(System.IO.File.ReadAllText($"{Program.ProblemsRoot}\\problem{id}.json"));
+            var initialValidation = Validate(problem, body.solution);
+
+            var currentSolution = body.solution.Select(i => new Point2D(i[0], i[1])).ToList();
+            currentSolution = Solver.Corner.Optimize(problem, GetCancellationToken(TimeSpan.FromSeconds(10)), body);
             var newSolution = new SolutionBody() { vertices = currentSolution.Select(i => new List<int>() { (int)i.x, (int)i.y }).ToList() };
 
             if (currentSolution == null || Validate(problem, newSolution.vertices).IsWorseThan(initialValidation))
@@ -263,6 +282,13 @@ namespace Solver
             response.EnsureSuccessStatusCode();
 
             return (string)(JObject.Parse(await response.Content.ReadAsStringAsync())["id"]);
+        }
+
+        private static CancellationToken GetCancellationToken(TimeSpan timeout)
+        {
+            var cancellationTokenSource = new CancellationTokenSource();
+            cancellationTokenSource.CancelAfter(timeout);
+            return cancellationTokenSource.Token;
         }
     }
 }
