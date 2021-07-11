@@ -225,13 +225,13 @@ namespace Solver
 
             var currentSolution = body.solution.Select(i => new Point2D(i[0], i[1])).ToList();
             currentSolution = Solver.Corner.Optimize(problem, GetCancellationToken(TimeSpan.FromSeconds(10)), body);
-            var newSolution = new SolutionBody() { vertices = currentSolution.Select(i => new List<int>() { (int)i.x, (int)i.y }).ToList() };
 
-            if (currentSolution == null || Validate(problem, newSolution.vertices).IsWorseThan(initialValidation))
+            if (currentSolution == null)
             {
                 return NotFound();
             }
 
+            var newSolution = new SolutionBody() { vertices = currentSolution.Select(i => new List<int>() { (int)i.x, (int)i.y }).ToList() };
             return Ok(newSolution);
         }
 

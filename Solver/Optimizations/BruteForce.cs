@@ -66,8 +66,6 @@ namespace Solver
 
                 currentState.State.vertices[mostConstainedVertex] = null;
             }
-
-            yield break;
         }
     }
 }

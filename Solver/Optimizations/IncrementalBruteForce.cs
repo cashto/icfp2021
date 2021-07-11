@@ -12,16 +12,15 @@ namespace Solver
         public static SolutionBody Execute(ProblemBody problem, CancellationToken cancel, OptimizationBody optimizationBody)
         {
             var problemBounds = Program.CalculateHoleBounds(problem);
-            var problemHole = problem.ProblemHole();
-            var interiorPoints = Program.CalculateInteriorPoints(problemBounds, problemHole).Shuffle();
+            var interiorPoints = Program.CalculateInteriorPoints(problemBounds, problem.ProblemHole()).Shuffle();
 
-            var initialState = new SearchState(optimizationBody);
+            var initialState = new SearchState(problem, optimizationBody);
 
             var results = Algorithims.Search(
                 initialState,
                 new DepthFirstSearch<SearchState, NoMove>(),
                 cancel,
-                (currentState) => NextState(currentState, problem, problemHole, interiorPoints, optimizationBody));
+                (currentState) => NextState(currentState, problem, interiorPoints, optimizationBody));
 
             var scoredResults =
                 from result in results
@@ -30,7 +29,7 @@ namespace Solver
                 {
                     vertices = result.State.vertices.Select(i => new List<int>() { (int)i.Value.x, (int)i.Value.y }).ToList()
                 }
-                let dislikes = Program.Dislikes(problemHole, result.State.vertices.Cast<Point2D>().ToList())
+                let dislikes = Program.Dislikes(initialState.problemHole, result.State.vertices.Cast<Point2D>().ToList())
                 select new { Solution = solution, Dislikes = dislikes };
 
             var listedScoredResults = scoredResults.ToList();
@@ -44,29 +43,29 @@ namespace Solver
         }
 
         private static IEnumerable<SearchNode<SearchState, NoMove>> NextState(
-            SearchNode<SearchState, NoMove> currentState,
+            SearchNode<SearchState, NoMove> searchNode,
             ProblemBody problem,
-            List<Point2D> problemHole,
             List<Point2D> interiorPoints,
             OptimizationBody optimizationBody)
         {
-            if (currentState.Depth == optimizationBody.selected.Count)
+            if (searchNode.Depth == optimizationBody.selected.Count)
             {
                 yield break;
             }
 
-            var mostConstainedVertex = Program.CalculateMostConstrainedVertex(problem, currentState.State, optimizationBody);
+            var currentState = searchNode.State;
+            var mostConstainedVertex = Program.CalculateMostConstrainedVertex(problem, currentState, optimizationBody);
 
             foreach (var point in interiorPoints)
             {
-                currentState.State.vertices[mostConstainedVertex] = point;
-                if (Program.IsValidSolutionSoFar(problem, problemHole, currentState.State, optimizationBody))
+                currentState.vertices[mostConstainedVertex] = point;
+                if (Program.IsValidSolutionSoFar(problem, currentState.problemHole, currentState, optimizationBody))
                 {
-                    Program.PrintCurrentState(currentState.State);
-                    yield return currentState.Create(currentState.State, new NoMove());
+                    Program.PrintCurrentState(currentState);
+                    yield return searchNode.Create(currentState, new NoMove());
                 }
 
-                currentState.State.vertices[mostConstainedVertex] = null;
+                currentState.vertices[mostConstainedVertex] = null;
             }
 
             yield break;

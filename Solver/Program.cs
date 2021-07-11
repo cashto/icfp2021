@@ -39,8 +39,9 @@ namespace Solver
             vertices = Enumerable.Range(0, nodeCount).Select(i => (Point2D?)null).ToList();
         }
 
-        public SearchState(OptimizationBody optimizationBody)
+        public SearchState(ProblemBody problem, OptimizationBody optimizationBody)
         {
+            this.problemHole = problem.ProblemHole();
             vertices = optimizationBody.solution.Select(i => (Point2D?)new Point2D(i[0], i[1])).ToList();
             foreach (var i in optimizationBody.selected)
             {
@@ -119,24 +120,6 @@ namespace Solver
             var p1 = problem.figure.vertices[edge[0]];
             var p2 = problem.figure.vertices[edge[1]];
             return new LineSegment2D(new Point2D(p1[0], p1[1]), new Point2D(p2[0], p2[1])).SquaredLength;
-        }
-
-        private static int CalculateMostConstrainedVertex2(ProblemBody problem, SearchState searchState, OptimizationBody optimizationBody = null)
-        {
-            var vertexSource = optimizationBody == null ? Enumerable.Range(0, problem.figure.vertices.Count) : optimizationBody.selected;
-
-            var vertexIndexes =
-                from vertexIndex in vertexSource
-                where !searchState.vertices[vertexIndex].HasValue
-                let constraintsInSet = problem.figure.edges.Count(edge =>
-                    (edge[0] == vertexIndex || edge[1] == vertexIndex) &&
-                    (searchState.vertices[edge[0]].HasValue || searchState.vertices[edge[1]].HasValue))
-                let constraints = problem.figure.edges.Count(edge =>
-                    (edge[0] == vertexIndex || edge[1] == vertexIndex))
-                orderby constraintsInSet descending, constraints descending
-                select vertexIndex;
-
-            return vertexIndexes.First();
         }
 
         public static bool IsValidSolutionSoFar(
