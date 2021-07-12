@@ -150,7 +150,7 @@ namespace Solver
             return true;
         }
 
-        public static Point2D CalculateHoleBounds(ProblemBody problem)
+        public static Point2D HoleBounds(this ProblemBody problem)
         {
             var max_x = 0;
             var max_y = 0;
@@ -326,6 +326,14 @@ namespace Solver
                 new Point2D(p2[0], p2[1]));
 
             return Math.Abs(solutionSegment.SquaredLength / problemSegment.SquaredLength - 1) * 1000000.0;
+        }
+
+        public static double StretchFactor(ProblemBody problem, List<List<int>> solutionVertices, int edgeIdx)
+        {
+            var edge = problem.figure.edges[edgeIdx];
+            var begin = new Point2D(solutionVertices[edge[0]][0], solutionVertices[edge[0]][1]);
+            var end = new Point2D(solutionVertices[edge[1]][0], solutionVertices[edge[1]][1]);
+            return StretchFactor(problem, begin, end, edge);
         }
 
         public static List<Point2D> RubberBand(

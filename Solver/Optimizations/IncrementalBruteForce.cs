@@ -11,7 +11,7 @@ namespace Solver
     {
         public static SolutionBody Execute(ProblemBody problem, CancellationToken cancel, OptimizationBody optimizationBody)
         {
-            var problemBounds = Program.CalculateHoleBounds(problem);
+            var problemBounds = problem.HoleBounds();
             var interiorPoints = Program.CalculateInteriorPoints(problemBounds, problem.ProblemHole()).Shuffle();
 
             var initialState = new SearchState(problem, optimizationBody);

@@ -37,6 +37,7 @@ namespace Solver
         public List<int> badBounds { get; set; }
         public List<int> badLengths { get; set; }
         public double dislikes { get; set; }
+        public List<double> stretchFactors { get; set; }
 
         public bool IsWorseThan(ValidateResponseBody other)
         {

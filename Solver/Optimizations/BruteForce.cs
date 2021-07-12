@@ -13,7 +13,7 @@ namespace Solver
         public static SolutionBody Optimize(int problemId, CancellationToken cancel)
         {
             var problem = JsonConvert.DeserializeObject<ProblemBody>(File.ReadAllText($"{Program.ProblemsRoot}\\problem{problemId}.json"));
-            var problemBounds = Program.CalculateHoleBounds(problem);
+            var problemBounds = problem.HoleBounds();
             var problemHole = problem.ProblemHole();
             var interiorPoints = Program.CalculateInteriorPoints(problemBounds, problemHole).Shuffle();
 

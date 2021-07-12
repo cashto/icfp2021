@@ -27,12 +27,17 @@ namespace Solver
                 .Where(i => i.Depth == problem.hole.Count)
                 .FirstOrDefault();
 
-            if (result != null)
+            if (result == null)
             {
-                foreach (var vertexIdx in Enumerable.Range(0, result.State.vertices.Count))
-                {
-                    solution[vertexIdx] = result.State.vertices[vertexIdx] ?? solution[vertexIdx];
-                }
+                return null;
+            }
+
+            var holeBounds = problem.HoleBounds();
+            var random = new Random();
+            foreach (var vertexIdx in Enumerable.Range(0, result.State.vertices.Count))
+            {
+                solution[vertexIdx] = result.State.vertices[vertexIdx] ??
+                    new Point2D(random.Next((int)holeBounds.x), random.Next((int)holeBounds.y));
             }
 
             return solution;
@@ -43,7 +48,8 @@ namespace Solver
             ProblemBody problem)
         {
             foreach (var vertexIdx in Enumerable.Range(0, problem.figure.vertices.Count)
-                .Where(i => !searchNode.State.vertices[i].HasValue))
+                .Where(i => !searchNode.State.vertices[i].HasValue)
+                .Shuffle())
             {
                 var point = problem.hole[searchNode.Depth];
                 searchNode.State.vertices[vertexIdx] = new Point2D(point[0], point[1]);

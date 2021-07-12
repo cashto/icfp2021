@@ -138,7 +138,8 @@ namespace Solver
             {
                 badBounds = Enumerable.Range(0, problem.figure.edges.Count).Where(i => Program.IsBadBound(problem, solutionVertices, i)).ToList(),
                 badLengths = Enumerable.Range(0, problem.figure.edges.Count).Where(i => Program.IsBadLength(problem, solutionVertices, i)).ToList(),
-                dislikes = Program.Dislikes(problem.ProblemHole(), solutionVertices.Select(i => new Point2D(i[0], i[1])).ToList())
+                dislikes = Program.Dislikes(problem.ProblemHole(), solutionVertices.Select(i => new Point2D(i[0], i[1])).ToList()),
+                stretchFactors = Enumerable.Range(0, problem.figure.edges.Count).Select(i => Program.StretchFactor(problem, solutionVertices, i)).ToList()
             };
         }
 
