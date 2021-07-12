@@ -53,3 +53,14 @@ and then hardly ever used.
 I didn't have time to solve every problem, so I priortized problems with high 'minimal dislikes' (ie, no team had
 solved it perfectly or even near-perfectly).  There were quite a few problems when a trivial solution could have 
 been made with minimal effort, but it wouldn't have scored more than a handful of points, so it wasn't worth the time.
+
+## Most aggravating bug
+
+The rubber-band physics (more like springs, actually -- they can push as well as pull) worked for about 95% of problems,
+but for some of them, it would blow up and vertexes would mysteriouslly march off to infinity for no apparent reason.
+At first I thought this was a numerical stability problem that could be mitigated by using smaller step sizes, but
+eventually, after hours of debugging, I noticed that the original edge lengths (which should be constant) were changing
+with each iteration.  This was tracked down to when the solution was initialized by copying it from the problem description --
+I knew I needed to make a deep copy of the list, but I did so (in Javascript) via ```Array::slice(0)```.  This makes a copy 
+of the list, but not a DEEP copy.  As a result, the problem and the solution ended up inappropriately sharing 
+references to the same (mutable) point object.
