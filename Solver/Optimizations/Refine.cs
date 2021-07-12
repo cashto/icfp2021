@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using IcfpUtils;
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Collections.Generic;
 using System.IO;
@@ -8,46 +9,44 @@ using System.Threading;
 
 namespace Solver
 {
+    class RefineMove
+    {
+        public int FixedEdge { get; set; }
+    }
+
     static class Refine
     {
+        static Random random = new Random();
+
         public static List<Point2D> Optimize(
             ProblemBody problem,
             TimeSpan timeout,
-            List<Point2D> currentSolution)
+            OptimizationBody optimizationBody)
         {
             var cancellationTokenSource = new CancellationTokenSource();
             cancellationTokenSource.CancelAfter(timeout);
             var cancellationToken = cancellationTokenSource.Token;
-            var vertexCount = problem.figure.vertices.Count;
 
-            var initialState = new SearchState(vertexCount, problem.ProblemHole(), GetNeighborNodes(problem));
+            // Select all vertices to be initially set
+            optimizationBody.selected = new List<int>();
+
+            var initialState = new SearchState(problem, optimizationBody, findYellowNodes: true);
             var results = Algorithims.Search(
                 initialState,
-                BestFirstSearch.Create<SearchState, NoMove>((lhs, rhs) => lhs.State < rhs.State, 100000),
+                BestFirstSearch.Create<SearchState, RefineMove>((lhs, rhs) => lhs.State < rhs.State, 100000),
                 cancellationToken,
-                (searchNode) => RefineNextState(searchNode, problem, currentSolution));
+                (searchNode) => RefineNextState(searchNode, problem));
 
-            var bestState = initialState;
-            foreach (var result in results)
-            {
-                if (bestState < result.State)
-                {
-                    bestState = result.State;
-                }
-            }
+            var result = results.Largest(result => -result.State.yellowEdges.Count);
+            Console.WriteLine($"Refine: {initialState.yellowEdges.Count} -> {result.State.yellowEdges.Count}");
 
-            foreach (var vertexIdx in Enumerable.Range(0, vertexCount))
-            {
-                currentSolution[vertexIdx] = bestState.vertices[vertexIdx] ?? currentSolution[vertexIdx];
-            }
-
-            return currentSolution;
+            return result.State.vertices.Cast<Point2D>().ToList();
         }
 
         private static List<Point2D> RefineSearchDeltas = CreateSearchDeltas();
         private static List<Point2D> CreateSearchDeltas()
         {
-            var radius = 2;
+            var radius = 5;
 
             var searchDeltas =
                 from x in Enumerable.Range(-radius, 2 * radius + 1)
@@ -55,37 +54,51 @@ namespace Solver
                 let point = new Point2D(x, y)
                 let length = new LineSegment2D(Point2D.Zero, point).SquaredLength
                 where length <= (radius + 0.5) * (radius + 0.5)
+                where point != Point2D.Zero
                 orderby length
                 select point;
 
             return searchDeltas.ToList();
         }
 
-        private static IEnumerable<SearchNode<SearchState, NoMove>> RefineNextState(
-            SearchNode<SearchState, NoMove> searchNode,
-            ProblemBody problem,
-            List<Point2D> currentSolution)
+        private static IEnumerable<SearchNode<SearchState, RefineMove>> RefineNextState(
+            SearchNode<SearchState, RefineMove> searchNode,
+            ProblemBody problem)
         {
             var currentState = searchNode.State;
             var vertexCount = problem.figure.vertices.Count;
-            //Console.WriteLine(currentState);
+            //Program.PrintCurrentState(searchNode);
+            //Console.WriteLine("   " + string.Join(",", searchNode.Moves.Select(i => i.FixedEdge)));
 
-            var undeterminedVertexIndexes =
-                from i in Enumerable.Range(0, vertexCount)
-                where !searchNode.State.vertices[i].HasValue
-                where IsAdjacentToCurrentSet(searchNode, i)
-                orderby currentState.neighborNodes[i].Count
-                select i;
-
-            foreach (var newVertexIdx in undeterminedVertexIndexes.ToList())
+            foreach (var yellowEdgeIdx in currentState.yellowEdges
+                .Where(i => !searchNode.Moves.Any(j => i == j.FixedEdge))
+                .Shuffle())
             {
-                foreach (var delta in RefineSearchDeltas)
+                var yellowEdge = problem.figure.edges[yellowEdgeIdx];
+                for (var ii = 0; ii < 2; ++ii)
                 {
-                    var newVertex = currentSolution[newVertexIdx] + delta;
-                    var newState = new SearchState(currentState, newVertex, newVertexIdx, problem);
-                    if (Program.IsValidSolutionSoFar(problem, currentState.problemHole, newState))
+                    var yellowNodeIdx = yellowEdge[ii];
+                    var yellowNode = currentState.vertices[yellowNodeIdx].Value;
+
+                    var otherNodeIdx = yellowEdge[1 - ii];
+                    var otherNode = currentState.vertices[otherNodeIdx].Value;
+
+                    foreach (var delta in RefineSearchDeltas.Where(i =>
+                        !Program.IsBadLength(problem, yellowNode + i, otherNode, yellowEdge)))
                     {
-                        yield return searchNode.Create(newState, new NoMove());
+                        var newState = new SearchState(currentState, yellowNode + delta, yellowNodeIdx, problem);
+                        Debug.Assert(!newState.yellowEdges.Contains(yellowEdgeIdx));
+                        if (
+                            newState.neighborNodes[yellowNodeIdx].All(i => !Program.IsBadBound(
+                                problem,
+                                newState.problemHole,
+                                yellowNode,
+                                newState.vertices[i].Value,
+                                new List<int>() { yellowNodeIdx, i })))
+                        {
+                            //Console.WriteLine($"   Moving node {yellowNodeIdx} by {delta} to {yellowNode + delta}");
+                            yield return searchNode.Create(newState, new RefineMove() { FixedEdge = yellowEdgeIdx });
+                        }
                     }
                 }
             }
@@ -97,21 +110,6 @@ namespace Solver
         {
             return searchNode.Depth == 0 ? true :
                 searchNode.State.neighborNodes[vertexIndex].Any(i => searchNode.State.vertices[i].HasValue);
-        }
-
-        private static List<List<int>> GetNeighborNodes(ProblemBody problem)
-        {
-            var ans = Enumerable.Range(0, problem.figure.vertices.Count)
-                .Select(i => new List<int>())
-                .ToList();
-
-            foreach (var edge in problem.figure.edges)
-            {
-                ans[edge[0]].Add(edge[1]);
-                ans[edge[1]].Add(edge[0]);
-            }
-
-            return ans;
         }
     }
 }

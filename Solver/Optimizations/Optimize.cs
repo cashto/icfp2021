@@ -16,7 +16,8 @@ namespace Solver
             List<Point2D> currentSolution,
             bool optimizeForDislikes = false)
         {
-            // TODO: assert is valid solution: optimizationBody.solution
+            // Future: assert is valid solution: optimizationBody.solution
+
             var problemHole = problem.ProblemHole();
 
             while (!cancellationToken.IsCancellationRequested)

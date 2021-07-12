@@ -60,7 +60,7 @@ namespace Solver
                 currentState.State.vertices[mostConstainedVertex] = point;
                 if (Program.IsValidSolutionSoFar(problem, currentState.State.problemHole, currentState.State))
                 {
-                    Program.PrintCurrentState(currentState.State);
+                    Program.PrintCurrentState(currentState);
                     yield return currentState.Create(currentState.State, new NoMove());
                 }
 

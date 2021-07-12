@@ -11,9 +11,12 @@ namespace Solver
     public class SearchState
     {
         public List<Point2D?> vertices;
-        public int vertexCount;
-        public int edgeCount;
+        public List<int> yellowNodes;
+        public double yellowEdgeLengths;
+        public List<int> yellowEdges;
+        public bool findYellowNodes;
 
+        // Along for the ride
         public List<List<int>> neighborNodes;
         public List<Point2D> problemHole;
 
@@ -25,38 +28,43 @@ namespace Solver
         {
             vertices = previousSearchState.vertices.ToList();
             vertices[newVertexIdx] = newVertex;
-            vertexCount = previousSearchState.vertexCount + 1;
-            edgeCount = problem.figure.edges.Count(edge => vertices[edge[0]].HasValue && vertices[edge[1]].HasValue);
-
+            this.findYellowNodes = previousSearchState.findYellowNodes;
+            FindYellowNodes(problem, vertices);
             neighborNodes = previousSearchState.neighborNodes;
             problemHole = previousSearchState.problemHole;
         }
 
-        public SearchState(int nodeCount, List<Point2D> problemHole, List<List<int>> neighborNodes = null)
+        // Bruteforce ctor
+        public SearchState(int nodeCount, List<Point2D> problemHole)
         {
             this.problemHole = problemHole;
-            this.neighborNodes = neighborNodes;
             vertices = Enumerable.Range(0, nodeCount).Select(i => (Point2D?)null).ToList();
         }
 
-        public SearchState(ProblemBody problem, OptimizationBody optimizationBody)
+        // Refine, corner, incremental brute force ctor
+        public SearchState(ProblemBody problem, OptimizationBody optimizationBody, bool findYellowNodes = false)
         {
+            this.findYellowNodes = findYellowNodes;
             this.problemHole = problem.ProblemHole();
+            this.neighborNodes = Program.GetNeighborNodes(problem);
             vertices = optimizationBody.solution.Select(i => (Point2D?)new Point2D(i[0], i[1])).ToList();
+            if (optimizationBody != null)
             foreach (var i in optimizationBody.selected)
             {
                 vertices[i] = null;
             }
+
+            FindYellowNodes(problem, vertices);
         }
 
         public static bool operator <(SearchState lhs, SearchState rhs)
         {
-            if (lhs.vertexCount == rhs.vertexCount)
+            if (lhs.yellowEdges.Count == rhs.yellowEdges.Count)
             {
-                return lhs.edgeCount < rhs.edgeCount;
+                return lhs.yellowEdgeLengths < rhs.yellowEdgeLengths;
             }
 
-            return lhs.vertexCount < rhs.vertexCount;
+            return lhs.yellowEdges.Count < rhs.yellowEdges.Count;
         }
 
         public static bool operator >(SearchState lhs, SearchState rhs)
@@ -66,7 +74,47 @@ namespace Solver
 
         public override string ToString()
         {
-            return $"SearchNode:({vertexCount}, {edgeCount})";
+            return $"(YellowEdges={yellowEdges?.Count}, YellowNodes={yellowNodes?.Count}, YellowEdgeLengths={yellowEdgeLengths})";
+        }
+
+        private void FindYellowNodes(ProblemBody problem, List<Point2D?> solution)
+        {
+            if (!findYellowNodes)
+            {
+                return;
+            }
+
+            yellowNodes = new List<int>();
+            yellowEdgeLengths = 0;
+            yellowEdges = new List<int>();
+
+            foreach (var edgeIdx in Enumerable.Range(0, problem.figure.edges.Count))
+            {
+                var edge = problem.figure.edges[edgeIdx];
+                var begin = solution[edge[0]].Value;
+                var end = solution[edge[1]].Value;
+
+                if (Program.IsBadLength(problem, begin, end, edge))
+                {
+                    yellowEdges.Add(edgeIdx);
+                    var edgeLength = Program.StretchFactor(problem, begin, end, edge);
+                    if (edgeLength > yellowEdgeLengths)
+                    {
+                        yellowEdgeLengths = edgeLength;
+                    }
+
+                    if (!yellowNodes.Contains(edge[0]))
+                    {
+                        yellowNodes.Add(edge[0]);
+                    }
+
+                    if (!yellowNodes.Contains(edge[1]))
+                    {
+                        yellowNodes.Add(edge[1]);
+                    }
+
+                }
+            }
         }
     }
 
@@ -81,14 +129,9 @@ namespace Solver
             Server.Start(args);
         }
 
-        public static void PrintCurrentState(SearchState state)
+        public static void PrintCurrentState<S, M>(SearchNode<S, M> searchNode)
         {
-            //foreach (var vertex in state.vertices)
-            //{
-            //    Console.Write(vertex.HasValue ? vertex.Value.ToString() : "null");
-            //    Console.Write(' ');
-            //}
-            //Console.WriteLine();
+            //Console.WriteLine($"Depth:{searchNode.Depth}, CurrentState:{searchNode.State}");
         }
 
         public static int CalculateMostConstrainedVertex(ProblemBody problem, SearchState searchState, OptimizationBody optimizationBody = null)
@@ -384,6 +427,63 @@ namespace Solver
             return currentSolution
                 .Select(i => new Point2D(Math.Floor(i.x + 0.5), Math.Floor(i.y + 0.5)))
                 .ToList();
+        }
+
+        public static List<List<int>> GetNeighborNodes(ProblemBody problem)
+        {
+            var ans = Enumerable.Range(0, problem.figure.vertices.Count)
+                .Select(i => new List<int>())
+                .ToList();
+
+            foreach (var edge in problem.figure.edges)
+            {
+                ans[edge[0]].Add(edge[1]);
+                ans[edge[1]].Add(edge[0]);
+            }
+
+            return ans;
+        }
+
+        public static List<double> GetNodeDistances(ProblemBody problem, int startNode, List<List<int>> neighborNodes)
+        {
+            var ans = Enumerable.Range(0, problem.figure.vertices.Count).Select(i => double.PositiveInfinity).ToList();
+            var visitedNodes = Enumerable.Range(0, problem.figure.vertices.Count).Select(i => false).ToList();
+            var nodes = new Queue<int>();
+            
+            nodes.Enqueue(startNode);
+            ans[startNode] = 0;
+
+            while (nodes.Any())
+            {
+                var node = nodes.Dequeue();
+                visitedNodes[node] = true;
+
+                var p1 = new Point2D(
+                    problem.figure.vertices[node][0],
+                    problem.figure.vertices[node][1]);
+
+                foreach (var neighborNode in neighborNodes[node])
+                {
+                    if (!visitedNodes[neighborNode])
+                    {
+                        nodes.Enqueue(neighborNode);
+                    }
+
+                    var p2 = new Point2D(
+                        problem.figure.vertices[neighborNode][0],
+                        problem.figure.vertices[neighborNode][1]);
+
+                    var distance = p1.Distance(p2);
+
+                    var newDistance = ans[node] + distance;
+                    if (newDistance < ans[neighborNode])
+                    {
+                        ans[neighborNode] = newDistance;
+                    }
+                }
+            }
+
+            return ans;
         }
     }
 }

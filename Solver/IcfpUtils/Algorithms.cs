@@ -342,6 +342,7 @@ namespace IcfpUtils
 	
 	public class BestFirstSearch
 	{
+		// "Best" is when lessFn returns true.
 		public static ISearchContainer<SearchNodeEnumerator<S, M>> Create<S, M>(
 			Func<SearchNode<S, M>, SearchNode<S, M>, bool> lessFn,
 			int? maxItems = null)

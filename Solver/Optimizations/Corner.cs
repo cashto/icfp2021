@@ -13,15 +13,21 @@ namespace Solver
         public static List<Point2D> Optimize(ProblemBody problem, CancellationToken cancellationToken, OptimizationBody optimizationBody)
         {
             var solution = optimizationBody.solution.Select(i => new Point2D(i[0], i[1])).ToList();
-            
+
             // Select all vertices to be initially set to null
             optimizationBody.selected = Enumerable.Range(0, problem.figure.vertices.Count).ToList();
+            var initialState = new SearchState(problem, optimizationBody);
+            var nodeDistances = Enumerable.Range(0, problem.figure.vertices.Count)
+                .Select(i => Program.GetNodeDistances(problem, i, initialState.neighborNodes))
+                .ToList();
+
+            var holeOrder = Enumerable.Range(0, problem.hole.Count).Shuffle();
 
             var results = Algorithims.Search(
-                new SearchState(problem, optimizationBody),
+                initialState,
                 new DepthFirstSearch<SearchState, NoMove>(),
                 cancellationToken,
-                (currentState) => NextState(currentState, problem));
+                (currentState) => NextState(currentState, problem, nodeDistances, holeOrder));
 
             var result = results
                 .Where(i => i.Depth == problem.hole.Count)
@@ -45,17 +51,43 @@ namespace Solver
 
         private static IEnumerable<SearchNode<SearchState, NoMove>> NextState(
             SearchNode<SearchState, NoMove> searchNode,
-            ProblemBody problem)
+            ProblemBody problem,
+            List<List<double>> nodeDistances,
+            List<int> holeOrder)
         {
             foreach (var vertexIdx in Enumerable.Range(0, problem.figure.vertices.Count)
                 .Where(i => !searchNode.State.vertices[i].HasValue)
                 .Shuffle())
             {
-                var point = problem.hole[searchNode.Depth];
-                searchNode.State.vertices[vertexIdx] = new Point2D(point[0], point[1]);
+                var holeIdx = holeOrder[searchNode.Depth];
+                var hole = problem.hole[holeIdx];
+                var holePoint = new Point2D(hole[0], hole[1]);
+
+                var otherVertexIndexes = Enumerable.Range(0, problem.figure.vertices.Count)
+                    .Where(i => searchNode.State.vertices[i].HasValue);
+
+                var isOk = true;
+                foreach (var otherVertexIdx in otherVertexIndexes)
+                {
+                    var otherPoint = searchNode.State.vertices[otherVertexIdx].Value;
+                    var distance = holePoint.Distance(otherPoint);
+                    if (distance > nodeDistances[vertexIdx][otherVertexIdx])
+                    {
+                        isOk = false;
+                        break;
+                    }
+                }
+
+                //if (!isOk)
+                //{
+                //    continue;
+                //}
+
+                searchNode.State.vertices[vertexIdx] = holePoint;
+                
                 if (Program.IsValidSolutionSoFar(problem, searchNode.State.problemHole, searchNode.State))
                 {
-                    Program.PrintCurrentState(searchNode.State);
+                    Program.PrintCurrentState(searchNode);
                     yield return searchNode.Create(searchNode.State, new NoMove());
                 }
 

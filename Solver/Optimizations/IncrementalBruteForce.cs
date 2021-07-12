@@ -61,7 +61,7 @@ namespace Solver
                 currentState.vertices[mostConstainedVertex] = point;
                 if (Program.IsValidSolutionSoFar(problem, currentState.problemHole, currentState, optimizationBody))
                 {
-                    Program.PrintCurrentState(currentState);
+                    Program.PrintCurrentState(searchNode);
                     yield return searchNode.Create(currentState, new NoMove());
                 }
 

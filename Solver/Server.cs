@@ -203,17 +203,14 @@ namespace Solver
         public IActionResult Refine(int id, [FromBody] OptimizationBody body)
         {
             var problem = JsonConvert.DeserializeObject<ProblemBody>(System.IO.File.ReadAllText($"{Program.ProblemsRoot}\\problem{id}.json"));
-            var initialValidation = Validate(problem, body.solution);
 
-            var currentSolution = body.solution.Select(i => new Point2D(i[0], i[1])).ToList();
-            currentSolution = Solver.Refine.Optimize(problem, TimeSpan.FromSeconds(10), currentSolution);
-            var newSolution = new SolutionBody() { vertices = currentSolution.Select(i => new List<int>() { (int)i.x, (int)i.y }).ToList() };
-
-            if (currentSolution == null || Validate(problem, newSolution.vertices).IsWorseThan(initialValidation))
+            var currentSolution = Solver.Refine.Optimize(problem, TimeSpan.FromSeconds(10), body);
+            if (currentSolution == null)
             {
                 return NotFound();
             }
 
+            var newSolution = new SolutionBody() { vertices = currentSolution.Select(i => new List<int>() { (int)i.x, (int)i.y }).ToList() };
             return Ok(newSolution);
         }
 
