@@ -11,7 +11,8 @@ standalone server running on localhost, written in C#, serving an HTML/Javascrip
 to the localhost server via XMLHttpRequest.  The localhost server saves / loads solutions in progress and submits
 them to the contest server.
 
-Problems were mostly solved manually, with the occasional assistance of search tools on the localhost.
+Problems were mostly solved manually, with the occasional assistance of search tools on the localhost. I made no attempt
+to take advantages of any bonuses.
 
 A slightly modified version of [the UI can be found here](https://cashto.github.io/icfp2021/index.html). This version
 strips out communication with the localhost server. Since validation/scoring was done on the localhost server, all edges are 
@@ -46,5 +47,9 @@ and then hardly ever used.
 
 ## Results
 
-* Lightning round, somewhere between 40-50 of ~110 teams.
-* Standard round, somewhere between 60-70 of ~160 teams.
+* Lightning round, 60 of 78 problems solved, rank somewhere between 40-50 of ~110 teams.
+* Standard round, 97 of 132 problems solved, rank somewhere between 60-70 of ~160 teams.
+
+I didn't have time to solve every problem, so I priortized problems with high 'minimal dislikes' (ie, no team had
+solved it perfectly or even near-perfectly).  There were quite a few problems when a trivial solution could have 
+been made in minutes, but it wouldn't have scored more than a handful of points, so it wasn't work the time.
