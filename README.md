@@ -52,4 +52,4 @@ and then hardly ever used.
 
 I didn't have time to solve every problem, so I priortized problems with high 'minimal dislikes' (ie, no team had
 solved it perfectly or even near-perfectly).  There were quite a few problems when a trivial solution could have 
-been made in minutes, but it wouldn't have scored more than a handful of points, so it wasn't work the time.
+been made with minimal effort, but it wouldn't have scored more than a handful of points, so it wasn't worth the time.
