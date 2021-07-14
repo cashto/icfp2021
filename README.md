@@ -36,7 +36,7 @@ to that corner is less than 20 units.  This was written about six hours before t
 and then hardly ever used.
 * Pin corners: when rubberband is enabled, vertexes that are on corners are fixed into position.
 * Corner gravity: when rubberband is enabled, try to pull nodes to the closest corner. Didn't work very well, never used.
-* Greyed-out controls were performed on the localhost server:
+* Greyed-out controls were performed on the localhost server (execution time capped at 10 seconds):
     * Brute force: "the first, last, and only algorithm you'll ever need".
     * Incremental brute force: like brute force, but only considers moving selected nodes.  Occasionally useful 
       for automatically finding a legal position for two-three vertexes lying outside the polygon.
@@ -47,8 +47,8 @@ and then hardly ever used.
 
 ## Results
 
-* Lightning round, 60 of 78 problems solved, rank somewhere between 40-50 of ~110 teams.
-* Standard round, 97 of 132 problems solved, rank somewhere between 60-70 of ~160 teams.
+* Lightning round, 60 of 78 problems solved, rank 50 of 137 teams.
+* Standard round, 97 of 132 problems solved, rank 65 of 160 teams.
 
 I didn't have time to solve every problem, so I priortized problems with high 'minimal dislikes' (ie, no team had
 solved it perfectly or even near-perfectly).  I had quite a few unsolved problems when a trivial solution could have 
